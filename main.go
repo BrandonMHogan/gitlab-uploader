@@ -5,12 +5,12 @@ import (
     "fmt"
     "html/template"
     "io"
+    "mime/multipart"
     "net/http"
     "os"
     "path/filepath"
     "strings"
 )
-
 type UploadResponse struct {
     Success bool
     Message string
