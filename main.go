@@ -34,8 +34,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Parse the multipart form
-    err := r.ParseMultipartForm(10 << 20) // 10 MB max memory
+    err := r.ParseMultipartForm(10 << 20)
     if err != nil {
         sendJSONResponse(w, false, "Failed to parse form: "+err.Error())
         return
@@ -43,13 +42,14 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 
     baseURL := r.FormValue("gitlab_url")
     deployToken := r.FormValue("deploy_token")
+    artifactName := r.FormValue("artifact_name")
+    version := r.FormValue("version")
 
-    if baseURL == "" || deployToken == "" {
-        sendJSONResponse(w, false, "GitLab URL and Deploy Token are required")
+    if baseURL == "" || deployToken == "" || artifactName == "" || version == "" {
+        sendJSONResponse(w, false, "All fields are required")
         return
     }
 
-    // Get the files from form
     files := r.MultipartForm.File["files"]
     if len(files) == 0 {
         sendJSONResponse(w, false, "No files selected")
@@ -61,6 +61,12 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    // Ensure the base URL doesn't end with a slash
+    baseURL = strings.TrimSuffix(baseURL, "/")
+    
+    // Construct the full URL with artifact name and version
+    uploadBaseURL := fmt.Sprintf("%s/%s/%s", baseURL, artifactName, version)
+
     var errors []string
     for _, fileHeader := range files {
         file, err := fileHeader.Open()
@@ -70,29 +76,38 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
         }
         defer file.Close()
 
+        // Construct the correct filename
+        ext := filepath.Ext(fileHeader.Filename)
+        newFilename := fmt.Sprintf("%s-%s%s", artifactName, version, ext)
+        
+        // Create the full URL for this specific file
+        fullURL := fmt.Sprintf("%s/%s", uploadBaseURL, newFilename)
+
         // Create a temporary file
-        tempFile, err := os.CreateTemp("", "upload-*"+filepath.Ext(fileHeader.Filename))
+        tempFile, err := os.CreateTemp("", "upload-*"+ext)
         if err != nil {
-            errors = append(errors, fmt.Sprintf("Error creating temp file for %s: %v", fileHeader.Filename, err))
+            errors = append(errors, fmt.Sprintf("Error creating temp file for %s: %v", newFilename, err))
             continue
         }
         defer os.Remove(tempFile.Name())
         defer tempFile.Close()
 
-        // Copy the uploaded file to the temporary file
         _, err = io.Copy(tempFile, file)
         if err != nil {
-            errors = append(errors, fmt.Sprintf("Error copying %s: %v", fileHeader.Filename, err))
+            errors = append(errors, fmt.Sprintf("Error copying %s: %v", newFilename, err))
             continue
         }
 
-        // Construct the full URL for this file
-        fullURL := baseURL + "/" + fileHeader.Filename
+        // Rewind the temp file for reading
+        _, err = tempFile.Seek(0, 0)
+        if err != nil {
+            errors = append(errors, fmt.Sprintf("Error preparing %s for upload: %v", newFilename, err))
+            continue
+        }
 
-        // Upload to GitLab
         err = uploadToGitLab(fullURL, deployToken, tempFile.Name())
         if err != nil {
-            errors = append(errors, fmt.Sprintf("Error uploading %s: %v", fileHeader.Filename, err))
+            errors = append(errors, fmt.Sprintf("Error uploading %s: %v", newFilename, err))
             continue
         }
     }
@@ -100,7 +115,11 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
     if len(errors) > 0 {
         sendJSONResponse(w, false, "Errors occurred: "+strings.Join(errors, "; "))
     } else {
-        sendJSONResponse(w, true, "All files uploaded successfully")
+        implementationPath := fmt.Sprintf("implementation '%s:%s:%s'", 
+            strings.ReplaceAll(baseURL[strings.LastIndex(baseURL, "maven/")+6:], "/", "."),
+            artifactName,
+            version)
+        sendJSONResponse(w, true, fmt.Sprintf("All files uploaded successfully. Use: %s", implementationPath))
     }
 }
 
@@ -111,16 +130,13 @@ func uploadToGitLab(gitlabURL, deployToken, filePath string) error {
     }
     defer file.Close()
 
-    // Create the request
     request, err := http.NewRequest("PUT", gitlabURL, file)
     if err != nil {
         return fmt.Errorf("error creating request: %v", err)
     }
 
-    // Set headers
     request.Header.Set("Deploy-Token", deployToken)
 
-    // Make the request
     client := &http.Client{}
     response, err := client.Do(request)
     if err != nil {

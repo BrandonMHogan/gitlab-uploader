@@ -85,6 +85,8 @@
         padding: 1rem;
         border-radius: 4px;
         display: none;
+        white-space: pre-wrap;
+        word-break: break-all;
       }
 
       .message.error {
@@ -111,12 +113,36 @@
             id="gitlab_url"
             name="gitlab_url"
             required
-            placeholder="https://code.q2developer.com/api/v4/projects/992/packages/maven/com/entersekt/TransaktSDK/3.8.7"
+            placeholder="https://code.q2developer.com/api/v4/projects/1322/packages/maven/whatever/this/is"
           />
           <div class="help-text">
-            Enter the base URL without the filename. The filename will be
-            automatically appended.
+            Enter the base URL up to the package path (without artifact name and
+            version)
           </div>
+        </div>
+
+        <div class="form-group">
+          <label for="artifact_name">Artifact Name:</label>
+          <input
+            type="text"
+            id="artifact_name"
+            name="artifact_name"
+            required
+            placeholder="sdk"
+          />
+          <div class="help-text">The name of your artifact (e.g., sdk)</div>
+        </div>
+
+        <div class="form-group">
+          <label for="version">Version:</label>
+          <input
+            type="text"
+            id="version"
+            name="version"
+            required
+            placeholder="1.14.4"
+          />
+          <div class="help-text">The version number (e.g., 1.14.4)</div>
         </div>
 
         <div class="form-group">
