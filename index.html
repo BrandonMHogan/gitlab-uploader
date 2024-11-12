@@ -261,7 +261,30 @@
     </div>
 
     <script>
-      // Previous script content remains largely the same, but update the error handling:
+      // Define all variables at the start
+      const form = document.getElementById("uploadForm");
+      const button = form.querySelector("button");
+      const messageDiv = document.getElementById("message");
+      const progressContainer = document.querySelector(".progress-container");
+      const progressFill = document.querySelector(".progress-fill");
+      const progressStatus = document.querySelector(".progress-status");
+      const progressPercentage = document.querySelector(".progress-percentage");
+      const fileInput = document.getElementById("files");
+      const selectedFilesDiv = document.querySelector(".selected-files");
+      const detailsDiv = document.getElementById("details");
+
+      // Update selected files display
+      fileInput.addEventListener("change", () => {
+        selectedFilesDiv.innerHTML = "";
+        Array.from(fileInput.files).forEach((file) => {
+          const fileItem = document.createElement("div");
+          fileItem.className = "file-item";
+          fileItem.textContent = file.name;
+          selectedFilesDiv.appendChild(fileItem);
+        });
+      });
+
+      // Form submission handler
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
@@ -295,7 +318,7 @@
         button.disabled = true;
         button.querySelector(".button-text").textContent = "Uploading...";
         messageDiv.style.display = "none";
-        document.getElementById("details").style.display = "none";
+        detailsDiv.style.display = "none";
         progressContainer.classList.add("visible");
 
         try {
@@ -326,7 +349,6 @@
           messageDiv.style.display = "block";
 
           if (result.details) {
-            const detailsDiv = document.getElementById("details");
             detailsDiv.textContent = result.details;
             detailsDiv.className = `message ${
               result.success ? "success" : "error"
