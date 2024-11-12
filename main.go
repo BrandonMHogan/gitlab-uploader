@@ -66,6 +66,10 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
     
     // Construct the full URL with artifact name and version
     uploadBaseURL := fmt.Sprintf("%s/%s/%s", baseURL, artifactName, version)
+    fmt.Printf("Base URL: %s\n", baseURL)
+    fmt.Printf("Artifact Name: %s\n", artifactName)
+    fmt.Printf("Version: %s\n", version)
+    fmt.Printf("Upload Base URL: %s\n", uploadBaseURL)
 
     var errors []string
     for _, fileHeader := range files {
@@ -82,6 +86,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
         
         // Create the full URL for this specific file
         fullURL := fmt.Sprintf("%s/%s", uploadBaseURL, newFilename)
+    	fmt.Printf("Full URL for file: %s\n", fullURL)
 
         // Create a temporary file
         tempFile, err := os.CreateTemp("", "upload-*"+ext)
@@ -130,6 +135,9 @@ func uploadToGitLab(gitlabURL, deployToken, filePath string) error {
     }
     defer file.Close()
 
+    // Log the URL being used
+    fmt.Printf("Uploading to URL: %s\n", gitlabURL)
+
     request, err := http.NewRequest("PUT", gitlabURL, file)
     if err != nil {
         return fmt.Errorf("error creating request: %v", err)
@@ -144,8 +152,15 @@ func uploadToGitLab(gitlabURL, deployToken, filePath string) error {
     }
     defer response.Body.Close()
 
+    // Read the response body
+    bodyBytes, err := io.ReadAll(response.Body)
+    if err != nil {
+        return fmt.Errorf("error reading response body: %v", err)
+    }
+    bodyString := string(bodyBytes)
+
     if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated {
-        return fmt.Errorf("upload failed with status: %s", response.Status)
+        return fmt.Errorf("upload failed with status: %s\nResponse: %s", response.Status, bodyString)
     }
 
     return nil
