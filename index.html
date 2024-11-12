@@ -375,7 +375,105 @@
       const progressFill = document.querySelector(".progress-fill");
       const progressPercentage = document.querySelector(".progress-percentage");
 
-      // ... rest of your existing JavaScript for form submission ...
+      // Update selected files display
+      fileInput.addEventListener("change", () => {
+        selectedFilesDiv.innerHTML = "";
+        Array.from(fileInput.files).forEach((file) => {
+          const fileItem = document.createElement("div");
+          fileItem.className = "file-item";
+          fileItem.textContent = file.name;
+          selectedFilesDiv.appendChild(fileItem);
+        });
+      });
+
+      // Form submission handler
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const files = fileInput.files;
+
+        if (files.length !== 2) {
+          messageDiv.textContent =
+            "Please select exactly two files (AAR and POM)";
+          messageDiv.className = "message error";
+          messageDiv.style.display = "block";
+          return;
+        }
+
+        let hasPom = false;
+        let hasAar = false;
+        for (let file of files) {
+          if (file.name.endsWith(".pom")) hasPom = true;
+          if (file.name.endsWith(".aar")) hasAar = true;
+        }
+
+        if (!hasPom || !hasAar) {
+          messageDiv.textContent = "Please select both AAR and POM files";
+          messageDiv.className = "message error";
+          messageDiv.style.display = "block";
+          return;
+        }
+
+        // Show loading state
+        button.classList.add("uploading");
+        button.disabled = true;
+        button.querySelector(".button-text").textContent = "Uploading...";
+        messageDiv.style.display = "none";
+        detailsDiv.style.display = "none";
+        progressContainer.classList.add("visible");
+
+        try {
+          let progress = 0;
+          const progressInterval = setInterval(() => {
+            if (progress < 90) {
+              progress += 10;
+              progressFill.style.width = `${progress}%`;
+              progressPercentage.textContent = `${progress}%`;
+            }
+          }, 500);
+
+          const response = await fetch("/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          clearInterval(progressInterval);
+          progressFill.style.width = "100%";
+          progressPercentage.textContent = "100%";
+
+          const result = await response.json();
+
+          messageDiv.textContent = result.message;
+          messageDiv.className = `message ${
+            result.success ? "success" : "error"
+          }`;
+          messageDiv.style.display = "block";
+
+          if (result.details) {
+            detailsDiv.textContent = result.details;
+            detailsDiv.className = `message ${
+              result.success ? "success" : "error"
+            }`;
+            detailsDiv.style.display = "block";
+          }
+        } catch (error) {
+          messageDiv.textContent =
+            "An error occurred while uploading the files";
+          messageDiv.className = "message error";
+          messageDiv.style.display = "block";
+        } finally {
+          button.classList.remove("uploading");
+          button.disabled = false;
+          button.querySelector(".button-text").textContent = "Upload Files";
+
+          setTimeout(() => {
+            progressContainer.classList.remove("visible");
+            progressFill.style.width = "0%";
+            progressPercentage.textContent = "0%";
+          }, 1000);
+        }
+      });
     </script>
   </body>
 </html>
