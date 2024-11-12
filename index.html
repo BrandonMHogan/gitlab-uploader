@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GitLab Package Uploader</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.6;
+        background-color: #f5f5f5;
+        color: #333;
+        padding: 2rem;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: white;
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        text-align: center;
+        color: #2f363d;
+        margin-bottom: 2rem;
+      }
+
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+      }
+
+      .help-text {
+        font-size: 0.875rem;
+        color: #666;
+        margin-top: 0.25rem;
+      }
+
+      input[type="text"],
+      input[type="file"] {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+      }
+
+      input[type="file"] {
+        padding: 0.5rem;
+      }
+
+      button {
+        width: 100%;
+        padding: 0.75rem;
+        background-color: #1a73e8;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      button:hover {
+        background-color: #1557b0;
+      }
+
+      .message {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 4px;
+        display: none;
+      }
+
+      .message.error {
+        background-color: #fde8e8;
+        color: #c81e1e;
+        border: 1px solid #fecaca;
+      }
+
+      .message.success {
+        background-color: #def7ec;
+        color: #03543f;
+        border: 1px solid #bcf0da;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>GitLab Package Uploader</h1>
+      <form id="uploadForm">
+        <div class="form-group">
+          <label for="gitlab_url">Base GitLab URL:</label>
+          <input
+            type="text"
+            id="gitlab_url"
+            name="gitlab_url"
+            required
+            placeholder="https://code.q2developer.com/api/v4/projects/992/packages/maven/com/entersekt/TransaktSDK/3.8.7"
+          />
+          <div class="help-text">
+            Enter the base URL without the filename. The filename will be
+            automatically appended.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="deploy_token">Deploy Token:</label>
+          <input
+            type="text"
+            id="deploy_token"
+            name="deploy_token"
+            required
+            placeholder="Enter your GitLab deploy token"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="files">Select Files (AAR and POM):</label>
+          <input
+            type="file"
+            id="files"
+            name="files"
+            multiple
+            required
+            accept=".aar,.pom"
+          />
+          <div class="help-text">
+            Select both .aar and .pom files for upload
+          </div>
+        </div>
+
+        <button type="submit">Upload Files</button>
+      </form>
+
+      <div id="message" class="message"></div>
+    </div>
+
+    <script>
+      document
+        .getElementById("uploadForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const formData = new FormData(e.target);
+          const messageDiv = document.getElementById("message");
+          const files = document.getElementById("files").files;
+
+          if (files.length > 2) {
+            messageDiv.textContent = "Please select a maximum of 2 files";
+            messageDiv.className = "message error";
+            messageDiv.style.display = "block";
+            return;
+          }
+
+          // Validate file extensions
+          for (let file of files) {
+            if (!file.name.endsWith(".aar") && !file.name.endsWith(".pom")) {
+              messageDiv.textContent = "Please select only .aar and .pom files";
+              messageDiv.className = "message error";
+              messageDiv.style.display = "block";
+              return;
+            }
+          }
+
+          try {
+            const response = await fetch("/upload", {
+              method: "POST",
+              body: formData,
+            });
+
+            const result = await response.json();
+
+            messageDiv.textContent = result.message;
+            messageDiv.className = `message ${
+              result.success ? "success" : "error"
+            }`;
+            messageDiv.style.display = "block";
+          } catch (error) {
+            messageDiv.textContent =
+              "An error occurred while uploading the files";
+            messageDiv.className = "message error";
+            messageDiv.style.display = "block";
+          }
+        });
+    </script>
+  </body>
+</html>
