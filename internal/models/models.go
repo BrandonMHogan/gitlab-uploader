@@ -1,5 +1,9 @@
 package models
 
+import (
+    "encoding/xml"
+)
+
 type Partner struct {
     ID   int    `json:"id"`
     Name string `json:"name"`
