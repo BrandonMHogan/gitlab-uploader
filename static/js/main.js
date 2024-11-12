@@ -136,12 +136,14 @@ document.addEventListener('DOMContentLoaded', function() {
             updateProgress(100);
             
             const result = await response.json();
+            console.log('Upload response:', result);
             
             showMessage(result.message, result.success ? 'success' : 'error');
             if (result.details) {
                 showDetails(result.details, result.success ? 'success' : 'error');
             }
         } catch (error) {
+            console.error('Upload error:', error);
             showMessage('An error occurred while uploading the files', 'error');
         } finally {
             showLoading(false);
