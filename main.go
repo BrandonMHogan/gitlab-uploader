@@ -1,6 +1,7 @@
 package main
 
 import (
+    "encoding/xml"
     "fmt"
     "html/template"
     "io"
@@ -13,6 +14,13 @@ import (
 type UploadResponse struct {
     Success bool
     Message string
+    Details string
+}
+
+type PomProject struct {
+    XMLName    xml.Name `xml:"project"`
+    GroupId    string   `xml:"groupId"`
+    ArtifactId string   `xml:"artifactId"`
 }
 
 func main() {
@@ -28,6 +36,24 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
     tmpl.Execute(w, nil)
 }
 
+func parsePomFile(file io.Reader) (*PomProject, error) {
+    var project PomProject
+    decoder := xml.NewDecoder(file)
+    err := decoder.Decode(&project)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse POM file: %v", err)
+    }
+    
+    if project.GroupId == "" {
+        return nil, fmt.Errorf("GroupId not found in POM file")
+    }
+    if project.ArtifactId == "" {
+        return nil, fmt.Errorf("ArtifactId not found in POM file")
+    }
+    
+    return &project, nil
+}
+
 func handleUpload(w http.ResponseWriter, r *http.Request) {
     if r.Method != http.MethodPost {
         http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -36,40 +62,63 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 
     err := r.ParseMultipartForm(10 << 20)
     if err != nil {
-        sendJSONResponse(w, false, "Failed to parse form: "+err.Error())
+        sendJSONResponse(w, false, "Failed to parse form", err.Error())
         return
     }
 
-    baseURL := r.FormValue("gitlab_url")
+    projectID := r.FormValue("project_id")
     deployToken := r.FormValue("deploy_token")
-    artifactName := r.FormValue("artifact_name")
     version := r.FormValue("version")
 
-    if baseURL == "" || deployToken == "" || artifactName == "" || version == "" {
-        sendJSONResponse(w, false, "All fields are required")
+    if projectID == "" || deployToken == "" || version == "" {
+        sendJSONResponse(w, false, "All fields are required", "Missing required fields")
         return
     }
 
+    // Get the files from form
     files := r.MultipartForm.File["files"]
-    if len(files) == 0 {
-        sendJSONResponse(w, false, "No files selected")
+    if len(files) != 2 {
+        sendJSONResponse(w, false, "Exactly two files (AAR and POM) are required", "Invalid number of files")
         return
     }
 
-    if len(files) > 2 {
-        sendJSONResponse(w, false, "Maximum 2 files allowed")
+    // Find the POM file
+    var pomFile *multipart.FileHeader
+    for _, file := range files {
+        if strings.HasSuffix(file.Filename, ".pom") {
+            pomFile = file
+            break
+        }
+    }
+
+    if pomFile == nil {
+        sendJSONResponse(w, false, "POM file is required", "No POM file found")
         return
     }
 
-    // Ensure the base URL doesn't end with a slash
-    baseURL = strings.TrimSuffix(baseURL, "/")
-    
-    // Construct the full URL with artifact name and version
-    uploadBaseURL := fmt.Sprintf("%s/%s/%s", baseURL, artifactName, version)
-    fmt.Printf("Base URL: %s\n", baseURL)
-    fmt.Printf("Artifact Name: %s\n", artifactName)
-    fmt.Printf("Version: %s\n", version)
-    fmt.Printf("Upload Base URL: %s\n", uploadBaseURL)
+    // Parse POM file
+    pFile, err := pomFile.Open()
+    if err != nil {
+        sendJSONResponse(w, false, "Failed to open POM file", err.Error())
+        return
+    }
+    defer pFile.Close()
+
+    pomData, err := parsePomFile(pFile)
+    if err != nil {
+        sendJSONResponse(w, false, "Failed to parse POM file", err.Error())
+        return
+    }
+
+    fmt.Printf("Parsed POM file - GroupId: %s, ArtifactId: %s\n", pomData.GroupId, pomData.ArtifactId)
+
+    // Construct base URL
+    baseURL := fmt.Sprintf("https://code.q2developer.com/api/v4/projects/%s/packages/maven/%s/%s",
+        projectID,
+        strings.ReplaceAll(pomData.GroupId, ".", "/"),
+        pomData.ArtifactId)
+
+    fmt.Printf("Constructed base URL: %s\n", baseURL)
 
     var errors []string
     for _, fileHeader := range files {
@@ -80,18 +129,10 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
         }
         defer file.Close()
 
-        // Construct the correct filename
-        ext := filepath.Ext(fileHeader.Filename)
-        newFilename := fmt.Sprintf("%s-%s%s", artifactName, version, ext)
-        
-        // Create the full URL for this specific file
-        fullURL := fmt.Sprintf("%s/%s", uploadBaseURL, newFilename)
-    	fmt.Printf("Full URL for file: %s\n", fullURL)
-
         // Create a temporary file
-        tempFile, err := os.CreateTemp("", "upload-*"+ext)
+        tempFile, err := os.CreateTemp("", "upload-*"+filepath.Ext(fileHeader.Filename))
         if err != nil {
-            errors = append(errors, fmt.Sprintf("Error creating temp file for %s: %v", newFilename, err))
+            errors = append(errors, fmt.Sprintf("Error creating temp file for %s: %v", fileHeader.Filename, err))
             continue
         }
         defer os.Remove(tempFile.Name())
@@ -99,32 +140,35 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 
         _, err = io.Copy(tempFile, file)
         if err != nil {
-            errors = append(errors, fmt.Sprintf("Error copying %s: %v", newFilename, err))
+            errors = append(errors, fmt.Sprintf("Error copying %s: %v", fileHeader.Filename, err))
             continue
         }
 
-        // Rewind the temp file for reading
         _, err = tempFile.Seek(0, 0)
         if err != nil {
-            errors = append(errors, fmt.Sprintf("Error preparing %s for upload: %v", newFilename, err))
+            errors = append(errors, fmt.Sprintf("Error preparing %s for upload: %v", fileHeader.Filename, err))
             continue
         }
+
+        // Construct full URL for this file
+        fullURL := fmt.Sprintf("%s/%s/%s", baseURL, version, fileHeader.Filename)
+        fmt.Printf("Uploading %s to: %s\n", fileHeader.Filename, fullURL)
 
         err = uploadToGitLab(fullURL, deployToken, tempFile.Name())
         if err != nil {
-            errors = append(errors, fmt.Sprintf("Error uploading %s: %v", newFilename, err))
+            errors = append(errors, fmt.Sprintf("Error uploading %s: %v", fileHeader.Filename, err))
             continue
         }
     }
 
     if len(errors) > 0 {
-        sendJSONResponse(w, false, "Errors occurred: "+strings.Join(errors, "; "))
+        sendJSONResponse(w, false, "Errors occurred during upload", strings.Join(errors, "; "))
     } else {
         implementationPath := fmt.Sprintf("implementation '%s:%s:%s'", 
-            strings.ReplaceAll(baseURL[strings.LastIndex(baseURL, "maven/")+6:], "/", "."),
-            artifactName,
+            pomData.GroupId,
+            pomData.ArtifactId,
             version)
-        sendJSONResponse(w, true, fmt.Sprintf("All files uploaded successfully. Use: %s", implementationPath))
+        sendJSONResponse(w, true, fmt.Sprintf("All files uploaded successfully. Use: %s", implementationPath), "")
     }
 }
 
@@ -135,13 +179,11 @@ func uploadToGitLab(gitlabURL, deployToken, filePath string) error {
     }
     defer file.Close()
 
-    // Get file stats to determine size
     stat, err := file.Stat()
     if err != nil {
         return fmt.Errorf("error getting file stats: %v", err)
     }
 
-    // Log the URL being used
     fmt.Printf("Uploading to URL: %s\n", gitlabURL)
 
     request, err := http.NewRequest("PUT", gitlabURL, file)
@@ -149,15 +191,12 @@ func uploadToGitLab(gitlabURL, deployToken, filePath string) error {
         return fmt.Errorf("error creating request: %v", err)
     }
 
-    // Set the required headers
     request.Header.Set("Deploy-Token", deployToken)
     request.Header.Set("Content-Type", "application/octet-stream")
     request.ContentLength = stat.Size()
-    
-    // Add the -L flag equivalent
+
     client := &http.Client{
         CheckRedirect: func(req *http.Request, via []*http.Request) error {
-            // Copy the original headers to redirected request
             for key, value := range via[0].Header {
                 req.Header[key] = value
             }
@@ -171,7 +210,6 @@ func uploadToGitLab(gitlabURL, deployToken, filePath string) error {
     }
     defer response.Body.Close()
 
-    // Read the response body
     bodyBytes, err := io.ReadAll(response.Body)
     if err != nil {
         return fmt.Errorf("error reading response body: %v", err)
@@ -182,17 +220,31 @@ func uploadToGitLab(gitlabURL, deployToken, filePath string) error {
     fmt.Printf("Response Body: %s\n", bodyString)
 
     if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated {
-        return fmt.Errorf("upload failed with status: %s\nResponse: %s", response.Status, bodyString)
+        // Map common status codes to user-friendly messages
+        var errorMessage string
+        switch response.StatusCode {
+        case http.StatusUnauthorized:
+            errorMessage = "Unauthorized: Please check your deploy token"
+        case http.StatusForbidden:
+            errorMessage = "Forbidden: You don't have permission to upload to this project"
+        case http.StatusNotFound:
+            errorMessage = "Not Found: The project ID may be incorrect"
+        default:
+            errorMessage = fmt.Sprintf("Upload failed with status %d", response.StatusCode)
+        }
+        return fmt.Errorf("%s\nResponse: %s", errorMessage, bodyString)
     }
 
     return nil
 }
 
-func sendJSONResponse(w http.ResponseWriter, success bool, message string) {
+func sendJSONResponse(w http.ResponseWriter, success bool, message, details string) {
     w.Header().Set("Content-Type", "application/json")
     response := UploadResponse{
         Success: success,
         Message: message,
+        Details: details,
     }
-    fmt.Fprintf(w, `{"success":%t,"message":"%s"}`, response.Success, response.Message)
+    fmt.Fprintf(w, `{"success":%t,"message":"%s","details":"%s"}`, 
+        response.Success, response.Message, response.Details)
 }

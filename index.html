@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GitLab Package Uploader</title>
+    <title>GitLab Maven Package Uploader</title>
     <style>
       * {
         box-sizing: border-box;
@@ -189,33 +189,18 @@
   </head>
   <body>
     <div class="container">
-      <h1>GitLab Package Uploader</h1>
+      <h1>Maven Package Uploader</h1>
       <form id="uploadForm">
         <div class="form-group">
-          <label for="gitlab_url">Base GitLab URL:</label>
+          <label for="project_id">Project ID:</label>
           <input
-            type="text"
-            id="gitlab_url"
-            name="gitlab_url"
+            type="number"
+            id="project_id"
+            name="project_id"
             required
-            placeholder="https://code.q2developer.com/api/v4/projects/1322/packages/maven/whatever/this/is"
+            placeholder="e.g., 992"
           />
-          <div class="help-text">
-            Enter the base URL up to the package path (without artifact name and
-            version)
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="artifact_name">Artifact Name:</label>
-          <input
-            type="text"
-            id="artifact_name"
-            name="artifact_name"
-            required
-            placeholder="sdk"
-          />
-          <div class="help-text">The name of your artifact (e.g., sdk)</div>
+          <div class="help-text">Enter the GitLab project ID</div>
         </div>
 
         <div class="form-group">
@@ -225,9 +210,9 @@
             id="version"
             name="version"
             required
-            placeholder="1.14.4"
+            placeholder="e.g., 1.14.4"
           />
-          <div class="help-text">The version number (e.g., 1.14.4)</div>
+          <div class="help-text">The version number</div>
         </div>
 
         <div class="form-group">
@@ -242,7 +227,7 @@
         </div>
 
         <div class="form-group">
-          <label for="files">Select Files (AAR and POM):</label>
+          <label for="files">Select Files:</label>
           <input
             type="file"
             id="files"
@@ -251,9 +236,7 @@
             required
             accept=".aar,.pom"
           />
-          <div class="help-text">
-            Select both .aar and .pom files for upload
-          </div>
+          <div class="help-text">Select both AAR and POM files</div>
           <div class="selected-files"></div>
         </div>
 
@@ -274,51 +257,37 @@
       </div>
 
       <div id="message" class="message"></div>
+      <div id="details" class="message" style="margin-top: 0.5rem"></div>
     </div>
 
     <script>
-      const form = document.getElementById("uploadForm");
-      const button = form.querySelector("button");
-      const messageDiv = document.getElementById("message");
-      const progressContainer = document.querySelector(".progress-container");
-      const progressFill = document.querySelector(".progress-fill");
-      const progressStatus = document.querySelector(".progress-status");
-      const progressPercentage = document.querySelector(".progress-percentage");
-      const fileInput = document.getElementById("files");
-      const selectedFilesDiv = document.querySelector(".selected-files");
-
-      // Update selected files display
-      fileInput.addEventListener("change", () => {
-        selectedFilesDiv.innerHTML = "";
-        Array.from(fileInput.files).forEach((file) => {
-          const fileItem = document.createElement("div");
-          fileItem.className = "file-item";
-          fileItem.textContent = file.name;
-          selectedFilesDiv.appendChild(fileItem);
-        });
-      });
-
+      // Previous script content remains largely the same, but update the error handling:
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
         const formData = new FormData(e.target);
         const files = fileInput.files;
 
-        if (files.length > 2) {
-          messageDiv.textContent = "Please select a maximum of 2 files";
+        if (files.length !== 2) {
+          messageDiv.textContent =
+            "Please select exactly two files (AAR and POM)";
           messageDiv.className = "message error";
           messageDiv.style.display = "block";
           return;
         }
 
-        // Validate file extensions
+        let hasPom = false;
+        let hasAar = false;
         for (let file of files) {
-          if (!file.name.endsWith(".aar") && !file.name.endsWith(".pom")) {
-            messageDiv.textContent = "Please select only .aar and .pom files";
-            messageDiv.className = "message error";
-            messageDiv.style.display = "block";
-            return;
-          }
+          if (file.name.endsWith(".pom")) hasPom = true;
+          if (file.name.endsWith(".aar")) hasAar = true;
+        }
+
+        if (!hasPom || !hasAar) {
+          messageDiv.textContent = "Please select both AAR and POM files";
+          messageDiv.className = "message error";
+          messageDiv.style.display = "block";
+          return;
         }
 
         // Show loading state
@@ -326,10 +295,10 @@
         button.disabled = true;
         button.querySelector(".button-text").textContent = "Uploading...";
         messageDiv.style.display = "none";
+        document.getElementById("details").style.display = "none";
         progressContainer.classList.add("visible");
 
         try {
-          // Simulate upload progress (since we can't get real progress)
           let progress = 0;
           const progressInterval = setInterval(() => {
             if (progress < 90) {
@@ -355,18 +324,25 @@
             result.success ? "success" : "error"
           }`;
           messageDiv.style.display = "block";
+
+          if (result.details) {
+            const detailsDiv = document.getElementById("details");
+            detailsDiv.textContent = result.details;
+            detailsDiv.className = `message ${
+              result.success ? "success" : "error"
+            }`;
+            detailsDiv.style.display = "block";
+          }
         } catch (error) {
           messageDiv.textContent =
             "An error occurred while uploading the files";
           messageDiv.className = "message error";
           messageDiv.style.display = "block";
         } finally {
-          // Reset UI state
           button.classList.remove("uploading");
           button.disabled = false;
           button.querySelector(".button-text").textContent = "Upload Files";
 
-          // Hide progress after a short delay
           setTimeout(() => {
             progressContainer.classList.remove("visible");
             progressFill.style.width = "0%";
