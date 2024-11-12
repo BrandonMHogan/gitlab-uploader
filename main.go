@@ -135,6 +135,12 @@ func uploadToGitLab(gitlabURL, deployToken, filePath string) error {
     }
     defer file.Close()
 
+    // Get file stats to determine size
+    stat, err := file.Stat()
+    if err != nil {
+        return fmt.Errorf("error getting file stats: %v", err)
+    }
+
     // Log the URL being used
     fmt.Printf("Uploading to URL: %s\n", gitlabURL)
 
@@ -143,9 +149,22 @@ func uploadToGitLab(gitlabURL, deployToken, filePath string) error {
         return fmt.Errorf("error creating request: %v", err)
     }
 
+    // Set the required headers
     request.Header.Set("Deploy-Token", deployToken)
+    request.Header.Set("Content-Type", "application/octet-stream")
+    request.ContentLength = stat.Size()
+    
+    // Add the -L flag equivalent
+    client := &http.Client{
+        CheckRedirect: func(req *http.Request, via []*http.Request) error {
+            // Copy the original headers to redirected request
+            for key, value := range via[0].Header {
+                req.Header[key] = value
+            }
+            return nil
+        },
+    }
 
-    client := &http.Client{}
     response, err := client.Do(request)
     if err != nil {
         return fmt.Errorf("error making request: %v", err)
@@ -158,6 +177,9 @@ func uploadToGitLab(gitlabURL, deployToken, filePath string) error {
         return fmt.Errorf("error reading response body: %v", err)
     }
     bodyString := string(bodyBytes)
+
+    fmt.Printf("Response Status: %s\n", response.Status)
+    fmt.Printf("Response Body: %s\n", bodyString)
 
     if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated {
         return fmt.Errorf("upload failed with status: %s\nResponse: %s", response.Status, bodyString)
