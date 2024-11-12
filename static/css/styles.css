@@ -79,22 +79,31 @@
     box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1);
   }
 
+  /* Add these styles to your existing CSS */
   .file-upload {
     border: 2px dashed var(--border-color);
     border-radius: var(--radius);
     padding: 2rem;
     text-align: center;
     cursor: pointer;
-    transition: border-color 0.15s ease-in-out;
+    transition: all 0.2s ease;
     margin-bottom: 1rem;
+    position: relative;
   }
 
   .file-upload:hover {
     border-color: var(--primary-color);
+    background-color: rgba(3, 102, 214, 0.1);
   }
 
   .file-upload input[type="file"] {
-    display: none;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    cursor: pointer;
   }
 
   .selected-files {
@@ -104,7 +113,7 @@
   .file-item {
     display: flex;
     align-items: center;
-    padding: 0.5rem;
+    padding: 0.75rem;
     background-color: var(--background-color);
     border-radius: var(--radius);
     margin-bottom: 0.5rem;
@@ -112,8 +121,19 @@
 
   .file-item:before {
     content: "📄";
-    margin-right: 0.5rem;
+    margin-right: 0.75rem;
   }
+
+  .file-name {
+    flex-grow: 1;
+  }
+
+  .file-size {
+    color: #666;
+    font-size: 0.875rem;
+    margin-left: 0.5rem;
+  }
+
 
   button {
     width: 100%;
