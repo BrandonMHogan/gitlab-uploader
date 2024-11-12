@@ -1,6 +1,7 @@
 package main
 
 import (
+    "encoding/json"
     "encoding/xml"
     "fmt"
     "html/template"
@@ -11,6 +12,20 @@ import (
     "path/filepath"
     "strings"
 )
+
+type Partner struct {
+    ID   int    `json:"id"`
+    Name string `json:"name"`
+}
+
+type PartnersConfig struct {
+    Partners []Partner `json:"partners"`
+}
+
+type PageData struct {
+    Partners []Partner
+}
+
 type UploadResponse struct {
     Success bool
     Message string
@@ -31,9 +46,33 @@ func main() {
     http.ListenAndServe(":8080", nil)
 }
 
+// Load partners configuration from JSON file
+func loadPartnersConfig() ([]Partner, error) {
+    file, err := os.ReadFile("partners.json")
+    if err != nil {
+        return nil, fmt.Errorf("error reading partners config: %v", err)
+    }
+
+    var config PartnersConfig
+    if err := json.Unmarshal(file, &config); err != nil {
+        return nil, fmt.Errorf("error parsing partners config: %v", err)
+    }
+
+    return config.Partners, nil
+}
+
 func handleHome(w http.ResponseWriter, r *http.Request) {
+    partners, err := loadPartnersConfig()
+    if err != nil {
+        http.Error(w, "Failed to load partners configuration", http.StatusInternalServerError)
+        return
+    }
+
     tmpl := template.Must(template.ParseFiles("index.html"))
-    tmpl.Execute(w, nil)
+    data := PageData{
+        Partners: partners,
+    }
+    tmpl.Execute(w, data)
 }
 
 func parsePomFile(file io.Reader) (*PomProject, error) {

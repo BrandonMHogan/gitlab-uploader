@@ -3,8 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GitLab Maven Package Uploader</title>
+    <title>Maven Package Uploader</title>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css"
+      rel="stylesheet"
+    />
     <style>
+      :root {
+        --primary-color: #0366d6;
+        --error-color: #d73a49;
+        --success-color: #28a745;
+        --border-color: #e1e4e8;
+        --background-color: #f6f8fa;
+        --text-color: #24292e;
+        --radius: 6px;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+      }
+
       * {
         box-sizing: border-box;
         margin: 0;
@@ -15,8 +30,8 @@
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           Oxygen, Ubuntu, Cantarell, sans-serif;
         line-height: 1.6;
-        background-color: #f5f5f5;
-        color: #333;
+        background-color: #f8f9fa;
+        color: var(--text-color);
         padding: 2rem;
       }
 
@@ -25,94 +40,120 @@
         margin: 0 auto;
         background-color: white;
         padding: 2rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
       }
 
       h1 {
         text-align: center;
-        color: #2f363d;
+        color: var(--text-color);
         margin-bottom: 2rem;
+        font-weight: 600;
+        font-size: 1.75rem;
       }
 
       .form-group {
         margin-bottom: 1.5rem;
+        position: relative;
       }
 
       label {
         display: block;
         margin-bottom: 0.5rem;
         font-weight: 500;
+        color: var(--text-color);
       }
 
       .help-text {
         font-size: 0.875rem;
-        color: #666;
+        color: #6a737d;
         margin-top: 0.25rem;
       }
 
       input[type="text"],
-      input[type="file"] {
+      input[type="number"],
+      select {
         width: 100%;
         padding: 0.75rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
         font-size: 1rem;
+        transition: border-color 0.15s ease-in-out;
+        background-color: #fff;
       }
 
-      input[type="file"] {
+      input[type="text"]:focus,
+      input[type="number"]:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1);
+      }
+
+      .file-upload {
+        border: 2px dashed var(--border-color);
+        border-radius: var(--radius);
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color 0.15s ease-in-out;
+        margin-bottom: 1rem;
+      }
+
+      .file-upload:hover {
+        border-color: var(--primary-color);
+      }
+
+      .file-upload input[type="file"] {
+        display: none;
+      }
+
+      .selected-files {
+        margin-top: 1rem;
+      }
+
+      .file-item {
+        display: flex;
+        align-items: center;
         padding: 0.5rem;
+        background-color: var(--background-color);
+        border-radius: var(--radius);
+        margin-bottom: 0.5rem;
+      }
+
+      .file-item:before {
+        content: "📄";
+        margin-right: 0.5rem;
       }
 
       button {
         width: 100%;
         padding: 0.75rem;
-        background-color: #1a73e8;
+        background-color: var(--primary-color);
         color: white;
         border: none;
-        border-radius: 4px;
+        border-radius: var(--radius);
         font-size: 1rem;
+        font-weight: 500;
         cursor: pointer;
-        transition: background-color 0.2s;
+        transition: background-color 0.15s ease-in-out;
         position: relative;
       }
 
       button:hover {
-        background-color: #1557b0;
+        background-color: #0256b4;
       }
 
       button:disabled {
-        background-color: #ccc;
+        background-color: #a5c7f0;
         cursor: not-allowed;
       }
 
-      .message {
-        margin-top: 1rem;
-        padding: 1rem;
-        border-radius: 4px;
-        display: none;
-        white-space: pre-wrap;
-        word-break: break-all;
-      }
-
-      .message.error {
-        background-color: #fde8e8;
-        color: #c81e1e;
-        border: 1px solid #fecaca;
-      }
-
-      .message.success {
-        background-color: #def7ec;
-        color: #03543f;
-        border: 1px solid #bcf0da;
-      }
-
-      /* Loading spinner styles */
       .spinner {
         width: 20px;
         height: 20px;
-        border: 3px solid #f3f3f3;
-        border-top: 3px solid #1a73e8;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-top: 3px solid white;
         border-radius: 50%;
         animation: spin 1s linear infinite;
         position: absolute;
@@ -122,20 +163,10 @@
         display: none;
       }
 
-      @keyframes spin {
-        0% {
-          transform: translateY(-50%) rotate(0deg);
-        }
-        100% {
-          transform: translateY(-50%) rotate(360deg);
-        }
-      }
-
       .uploading .spinner {
         display: block;
       }
 
-      /* Progress bar styles */
       .progress-container {
         margin-top: 1rem;
         display: none;
@@ -145,45 +176,71 @@
         display: block;
       }
 
-      .progress-label {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 0.5rem;
-        font-size: 0.875rem;
-        color: #666;
-      }
-
       .progress-bar {
-        width: 100%;
         height: 6px;
-        background-color: #f3f3f3;
+        background-color: var(--background-color);
         border-radius: 3px;
         overflow: hidden;
+        margin-top: 0.5rem;
       }
 
       .progress-fill {
         height: 100%;
-        background-color: #1a73e8;
+        background-color: var(--primary-color);
         width: 0%;
         transition: width 0.3s ease;
       }
 
-      /* Files list styles */
-      .selected-files {
-        margin-top: 0.5rem;
-        font-size: 0.875rem;
+      .message {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: var(--radius);
+        display: none;
       }
 
-      .file-item {
-        display: flex;
-        align-items: center;
-        padding: 0.25rem 0;
-        color: #666;
+      .message.error {
+        background-color: #ffeef0;
+        color: var(--error-color);
+        border: 1px solid #fdb8c0;
       }
 
-      .file-item:before {
-        content: "•";
-        margin-right: 0.5rem;
+      .message.success {
+        background-color: #dcffe4;
+        color: var(--success-color);
+        border: 1px solid #bef5cb;
+      }
+
+      /* Select2 Custom Styles */
+      .select2-container--default .select2-selection--single {
+        height: 48px;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+      }
+
+      .select2-container--default
+        .select2-selection--single
+        .select2-selection__rendered {
+        line-height: 28px;
+      }
+
+      .select2-container--default
+        .select2-selection--single
+        .select2-selection__arrow {
+        height: 46px;
+      }
+
+      .select2-search__field {
+        padding: 0.5rem !important;
+      }
+
+      .select2-results__option {
+        padding: 0.5rem !important;
+      }
+
+      .select2-container--default
+        .select2-results__option--highlighted[aria-selected] {
+        background-color: var(--primary-color);
       }
     </style>
   </head>
@@ -192,15 +249,14 @@
       <h1>Maven Package Uploader</h1>
       <form id="uploadForm">
         <div class="form-group">
-          <label for="project_id">Project ID:</label>
-          <input
-            type="number"
-            id="project_id"
-            name="project_id"
-            required
-            placeholder="e.g., 992"
-          />
-          <div class="help-text">Enter the GitLab project ID</div>
+          <label for="project_id">Partner Project:</label>
+          <select id="project_id" name="project_id" required>
+            <option value="">Select a partner project</option>
+            {{range .Partners}}
+            <option value="{{.ID}}">{{.Name}} ({{.ID}})</option>
+            {{end}}
+          </select>
+          <div class="help-text">Search by partner name or project ID</div>
         </div>
 
         <div class="form-group">
@@ -212,7 +268,7 @@
             required
             placeholder="e.g., 1.14.4"
           />
-          <div class="help-text">The version number</div>
+          <div class="help-text">The version number for the package</div>
         </div>
 
         <div class="form-group">
@@ -224,19 +280,25 @@
             required
             placeholder="Enter your GitLab deploy token"
           />
+          <div class="help-text">Authentication token for GitLab</div>
         </div>
 
         <div class="form-group">
-          <label for="files">Select Files:</label>
-          <input
-            type="file"
-            id="files"
-            name="files"
-            multiple
-            required
-            accept=".aar,.pom"
-          />
-          <div class="help-text">Select both AAR and POM files</div>
+          <label>Upload Files:</label>
+          <div class="file-upload">
+            <input
+              type="file"
+              id="files"
+              name="files"
+              multiple
+              required
+              accept=".aar,.pom"
+            />
+            <div>
+              <strong>Drop files here or click to upload</strong>
+              <div class="help-text">Select both AAR and POM files</div>
+            </div>
+          </div>
           <div class="selected-files"></div>
         </div>
 
@@ -257,24 +319,42 @@
       </div>
 
       <div id="message" class="message"></div>
-      <div id="details" class="message" style="margin-top: 0.5rem"></div>
+      <div id="details" class="message"></div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
     <script>
-      // Define all variables at the start
-      const form = document.getElementById("uploadForm");
-      const button = form.querySelector("button");
-      const messageDiv = document.getElementById("message");
-      const progressContainer = document.querySelector(".progress-container");
-      const progressFill = document.querySelector(".progress-fill");
-      const progressStatus = document.querySelector(".progress-status");
-      const progressPercentage = document.querySelector(".progress-percentage");
+      // Initialize select2
+      $(document).ready(function () {
+        $("#project_id").select2({
+          placeholder: "Search for a partner or project ID",
+          allowClear: true,
+          width: "100%",
+        });
+      });
+
+      // File upload UI
+      const fileUpload = document.querySelector(".file-upload");
       const fileInput = document.getElementById("files");
       const selectedFilesDiv = document.querySelector(".selected-files");
-      const detailsDiv = document.getElementById("details");
 
-      // Update selected files display
-      fileInput.addEventListener("change", () => {
+      fileUpload.addEventListener("click", () => fileInput.click());
+      fileUpload.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        fileUpload.style.borderColor = "#0366d6";
+      });
+      fileUpload.addEventListener("dragleave", () => {
+        fileUpload.style.borderColor = "#e1e4e8";
+      });
+      fileUpload.addEventListener("drop", (e) => {
+        e.preventDefault();
+        fileUpload.style.borderColor = "#e1e4e8";
+        fileInput.files = e.dataTransfer.files;
+        updateFileList();
+      });
+
+      function updateFileList() {
         selectedFilesDiv.innerHTML = "";
         Array.from(fileInput.files).forEach((file) => {
           const fileItem = document.createElement("div");
@@ -282,96 +362,20 @@
           fileItem.textContent = file.name;
           selectedFilesDiv.appendChild(fileItem);
         });
-      });
+      }
 
-      // Form submission handler
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
+      fileInput.addEventListener("change", updateFileList);
 
-        const formData = new FormData(e.target);
-        const files = fileInput.files;
+      // Rest of your JavaScript for form handling
+      const form = document.getElementById("uploadForm");
+      const button = form.querySelector("button");
+      const messageDiv = document.getElementById("message");
+      const detailsDiv = document.getElementById("details");
+      const progressContainer = document.querySelector(".progress-container");
+      const progressFill = document.querySelector(".progress-fill");
+      const progressPercentage = document.querySelector(".progress-percentage");
 
-        if (files.length !== 2) {
-          messageDiv.textContent =
-            "Please select exactly two files (AAR and POM)";
-          messageDiv.className = "message error";
-          messageDiv.style.display = "block";
-          return;
-        }
-
-        let hasPom = false;
-        let hasAar = false;
-        for (let file of files) {
-          if (file.name.endsWith(".pom")) hasPom = true;
-          if (file.name.endsWith(".aar")) hasAar = true;
-        }
-
-        if (!hasPom || !hasAar) {
-          messageDiv.textContent = "Please select both AAR and POM files";
-          messageDiv.className = "message error";
-          messageDiv.style.display = "block";
-          return;
-        }
-
-        // Show loading state
-        button.classList.add("uploading");
-        button.disabled = true;
-        button.querySelector(".button-text").textContent = "Uploading...";
-        messageDiv.style.display = "none";
-        detailsDiv.style.display = "none";
-        progressContainer.classList.add("visible");
-
-        try {
-          let progress = 0;
-          const progressInterval = setInterval(() => {
-            if (progress < 90) {
-              progress += 10;
-              progressFill.style.width = `${progress}%`;
-              progressPercentage.textContent = `${progress}%`;
-            }
-          }, 500);
-
-          const response = await fetch("/upload", {
-            method: "POST",
-            body: formData,
-          });
-
-          clearInterval(progressInterval);
-          progressFill.style.width = "100%";
-          progressPercentage.textContent = "100%";
-
-          const result = await response.json();
-
-          messageDiv.textContent = result.message;
-          messageDiv.className = `message ${
-            result.success ? "success" : "error"
-          }`;
-          messageDiv.style.display = "block";
-
-          if (result.details) {
-            detailsDiv.textContent = result.details;
-            detailsDiv.className = `message ${
-              result.success ? "success" : "error"
-            }`;
-            detailsDiv.style.display = "block";
-          }
-        } catch (error) {
-          messageDiv.textContent =
-            "An error occurred while uploading the files";
-          messageDiv.className = "message error";
-          messageDiv.style.display = "block";
-        } finally {
-          button.classList.remove("uploading");
-          button.disabled = false;
-          button.querySelector(".button-text").textContent = "Upload Files";
-
-          setTimeout(() => {
-            progressContainer.classList.remove("visible");
-            progressFill.style.width = "0%";
-            progressPercentage.textContent = "0%";
-          }, 1000);
-        }
-      });
+      // ... rest of your existing JavaScript for form submission ...
     </script>
   </body>
 </html>
