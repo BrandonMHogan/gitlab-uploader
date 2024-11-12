@@ -2,16 +2,9 @@ package handlers
 
 import (
     "encoding/json"
-    "encoding/xml"
-    "fmt"
-    "io"
     "net/http"
-    "os"
-    "path/filepath"
-    "strings"
     
     "gitlab-uploader/internal/gitlab"
-    "gitlab-uploader/internal/models"
 )
 
 type UploadHandler struct {
