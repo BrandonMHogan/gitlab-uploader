@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maven Package Uploader</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+    <link href="/static/css/styles.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="container">
+        <h1>Maven Package Uploader</h1>
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="project_id">Partner Project:</label>
+                <select id="project_id" name="project_id" required>
+                    <option value="">Select a partner project</option>
+                    {{range .Partners}}
+                    <option value="{{.ID}}">{{.Name}} ({{.ID}})</option>
+                    {{end}}
+                </select>
+                <div class="help-text">Search by partner name or project ID</div>
+            </div>
+
+            <div class="form-group">
+                <label for="version">Version:</label>
+                <input type="text" id="version" name="version" required 
+                       placeholder="e.g., 1.14.4">
+                <div class="help-text">The version number</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="deploy_token">Deploy Token:</label>
+                <input type="text" id="deploy_token" name="deploy_token" required 
+                       placeholder="Enter your GitLab deploy token">
+            </div>
+            
+            <div class="form-group">
+                <label>Upload Files:</label>
+                <div class="file-upload">
+                    <input type="file" id="files" name="files" multiple required accept=".aar,.pom">
+                    <div>
+                        <strong>Drop files here or click to upload</strong>
+                        <div class="help-text">Select both AAR and POM files</div>
+                    </div>
+                </div>
+                <div class="selected-files"></div>
+            </div>
+            
+            <button type="submit">
+                <div class="spinner"></div>
+                <span class="button-text">Upload Files</span>
+            </button>
+        </form>
+        
+        <div class="progress-container">
+            <div class="progress-label">
+                <span class="progress-status">Uploading...</span>
+                <span class="progress-percentage">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+        </div>
+
+        <div id="message" class="message"></div>
+        <div id="details" class="message"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
