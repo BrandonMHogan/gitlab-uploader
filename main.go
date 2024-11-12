@@ -15,7 +15,6 @@ func main() {
     // Register handlers
     http.Handle("/", handlers.NewHomeHandler())
     http.Handle("/upload", handlers.NewUploadHandler())
-    http.Handle("/check-file", handlers.NewFileCheckHandler())
 
     fmt.Println("Server starting on http://localhost:8080")
     http.ListenAndServe(":8080", nil)
